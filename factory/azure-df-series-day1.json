@@ -1,0 +1,9 @@
+{
+	"name": "azure-df-series-day1",
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "e5b2c6d7-d8c7-49fe-9251-60212b2b8c96",
+		"tenantId": "9c36a7d0-bf7b-4991-9b78-be91a52f0226"
+	}
+}

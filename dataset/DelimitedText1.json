@@ -1,0 +1,46 @@
+{
+	"name": "DelimitedText1",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureBlobStorage1",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobStorageLocation",
+				"fileName": "Book1.csv",
+				"folderPath": "input",
+				"container": "source"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": [
+			{
+				"name": "Position",
+				"type": "String"
+			},
+			{
+				"name": "Nepali congress",
+				"type": "String"
+			},
+			{
+				"name": "Congress",
+				"type": "String"
+			},
+			{
+				"name": "Nepali Maoist",
+				"type": "String"
+			},
+			{
+				"name": "National decmocrat",
+				"type": "String"
+			}
+		]
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

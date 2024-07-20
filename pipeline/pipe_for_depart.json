@@ -1,0 +1,90 @@
+{
+	"name": "pipe_for_depart",
+	"properties": {
+		"activities": [
+			{
+				"name": "Copy data1",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": "SELECT \n    d.DepartmentID,\n    d.Name AS DepartmentName,\n    a.City AS Location  \nFROM \n    HumanResources.Department d\nJOIN \n    HumanResources.EmployeeDepartmentHistory edh ON d.DepartmentID = edh.DepartmentID\nJOIN \n    HumanResources.Employee e ON edh.BusinessEntityID = e.BusinessEntityID\nJOIN \n    Person.Address a ON e.BusinessEntityID = a.AddressID  \nGROUP BY\n    d.DepartmentID, d.Name, a.City;",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "SqlServerSink",
+						"writeBehavior": "insert",
+						"sqlWriterUseTableLock": false
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "SqlSereverdept",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "SqlServerTable1",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Migrate_dept",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Copy data1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "ls_sql_adv2022dw",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "WITH UniqueSource AS (\r\n    SELECT\r\n        DepartmentID,\r\n        DepartmentName,\r\n        Location,\r\n        ROW_NUMBER() OVER (PARTITION BY DepartmentID ORDER BY (SELECT NULL)) AS RowNum\r\n    FROM staging.dept\r\n)\r\nMERGE INTO hr.DimDepartment AS Target\r\nUSING (SELECT * FROM UniqueSource WHERE RowNum = 1) AS Source\r\nON Target.DepartmentID = Source.DepartmentID\r\nWHEN MATCHED THEN\r\n    UPDATE SET\r\n        Target.DepartmentName = Source.DepartmentName,\r\n        Target.Location = Source.Location\r\nWHEN NOT MATCHED BY TARGET THEN\r\n    INSERT (DepartmentID, DepartmentName, Location)\r\n    VALUES (Source.DepartmentID, Source.DepartmentName, Source.Location);\r\n"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2024-06-24T22:54:25Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

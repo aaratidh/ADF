@@ -1,0 +1,21 @@
+{
+	"name": "ls_sql_adv2022dw",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "SqlServer",
+		"typeProperties": {
+			"server": "LAPTOP-T5QHN9UO\\SQLEXPRESS",
+			"database": "adventureworks2022dw",
+			"encrypt": "optional",
+			"trustServerCertificate": false,
+			"authenticationType": "SQL",
+			"userName": "dedw",
+			"encryptedCredential": "eyJDcmVkZW50aWFsSWQiOiI5ZTQxYjM4ZS01NzU5LTQ2MjItYmVjMy03NjM5NWM1ZjQzOTEiLCJWZXJzaW9uIjoiMi4wIiwiQ2xhc3NUeXBlIjoiTWljcm9zb2Z0LkRhdGFQcm94eS5Db3JlLkludGVyU2VydmljZURhdGFDb250cmFjdC5DcmVkZW50aWFsU1UwNkNZMTQifQ=="
+		},
+		"connectVia": {
+			"referenceName": "SHIR",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

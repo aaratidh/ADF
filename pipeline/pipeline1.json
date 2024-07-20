@@ -1,0 +1,457 @@
+{
+	"name": "pipeline1",
+	"properties": {
+		"activities": [
+			{
+				"name": "Copy data1",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "Set variable1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": {
+							"value": "SELECT \n    e.BusinessEntityID AS EmployeeID,\n    p.FirstName,\n    p.LastName,\n    e.BirthDate,\n    e.HireDate,\n    e.JobTitle AS PositionID \nFROM \n    HumanResources.Employee e\nJOIN\n    Person.Person p ON e.BusinessEntityID = p.BusinessEntityID\nwhere e.HireDate >'@{variables('ETLStartDate')}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "SqlServerSink",
+						"writeBehavior": "insert",
+						"sqlWriterUseTableLock": false
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"mappings": [
+							{
+								"source": {
+									"name": "EmployeeID",
+									"type": "Int32",
+									"physicalType": "int"
+								},
+								"sink": {
+									"name": "EmployeeID",
+									"type": "Int32",
+									"physicalType": "int"
+								}
+							},
+							{
+								"source": {
+									"name": "FirstName",
+									"type": "String",
+									"physicalType": "nvarchar"
+								},
+								"sink": {
+									"name": "FirstName",
+									"type": "String",
+									"physicalType": "nvarchar"
+								}
+							},
+							{
+								"source": {
+									"name": "LastName",
+									"type": "String",
+									"physicalType": "nvarchar"
+								},
+								"sink": {
+									"name": "LastName",
+									"type": "String",
+									"physicalType": "nvarchar"
+								}
+							},
+							{
+								"source": {
+									"name": "BirthDate",
+									"type": "DateTime",
+									"physicalType": "date"
+								},
+								"sink": {
+									"name": "BirthDate",
+									"type": "DateTime",
+									"physicalType": "date"
+								}
+							},
+							{
+								"source": {
+									"name": "PositionID",
+									"type": "String",
+									"physicalType": "nvarchar"
+								},
+								"sink": {
+									"name": "Position",
+									"type": "String",
+									"physicalType": "nvarchar"
+								}
+							},
+							{
+								"source": {
+									"name": "HireDate",
+									"type": "DateTime",
+									"physicalType": "date"
+								},
+								"sink": {
+									"name": "HireDate",
+									"type": "DateTime",
+									"physicalType": "date"
+								}
+							}
+						],
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "SQLservercopy",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "ds_sqldbadv",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Script1",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "Copy data1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "ls_sql_adv2022dw",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "USE adventureworks2022dw;\n\n-- Declare a table variable to capture the output from the MERGE\nDECLARE @MergeOutput TABLE (\n    ActionTaken VARCHAR(10),\n    EmployeeID INT\n);\n\nWITH UniqueSource AS (\n    SELECT\n        EmployeeID,\n        MAX(FirstName) AS FirstName,\n        MAX(LastName) AS LastName,\n        MAX(BirthDate) AS BirthDate,\n        MAX(HireDate) AS HireDate,\n        MAX(Position) AS Position\n    FROM staging.employee\n    GROUP BY EmployeeID\n)\nMERGE INTO hr.dimemployee AS Target\nUSING UniqueSource AS Source\nON Target.EmployeeID = Source.EmployeeID\n\nWHEN MATCHED THEN\n    UPDATE SET\n        Target.FirstName = Source.FirstName,\n        Target.LastName = Source.LastName,\n        Target.BirthDate = Source.BirthDate,\n        Target.HireDate = Source.HireDate,\n        Target.PositionID = Source.Position\n\nWHEN NOT MATCHED BY TARGET THEN\n    INSERT (EmployeeID, FirstName, LastName, BirthDate, HireDate, PositionID)\n    VALUES (Source.EmployeeID, Source.FirstName, Source.LastName, Source.BirthDate, Source.HireDate, Source.Position)\n\n-- Capture the action type (INSERT, UPDATE) and the affected EmployeeID\nOUTPUT $action, inserted.EmployeeID INTO @MergeOutput (ActionTaken, EmployeeID); ---runtime table \n\n-- Select counts from the table variable\nSELECT ActionTaken, COUNT(*) AS Count\nFROM @MergeOutput\nGROUP BY ActionTaken;\n"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "get_metadata_info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "getbatchid",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": "Select * from ETL.ETL_Control",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "SqlServerTable1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Set variable1",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "get_metadata_info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "ETLStartDate",
+					"value": {
+						"value": "@activity('get_metadata_info').output.firstRow.StartTime",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Stored procedure1",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "captur_second_row",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[UpdateETLControl]",
+					"storedProcedureParameters": {
+						"BatchID": {
+							"value": {
+								"value": "@int(activity('getbatchid').output.firstRow.BatchID)",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						},
+						"ErrorMessage": {
+							"value": null,
+							"type": "String"
+						},
+						"RecordsFailed": {
+							"value": null,
+							"type": "Int32"
+						},
+						"RecordsProcessed": {
+							"value": {
+								"value": "@add(variables('Updatecount'), variables('insertcount'))\n",
+								"type": "Expression"
+							},
+							"type": "Int32"
+						},
+						"Status": {
+							"value": "completed",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "ls_sql_adv2022dw",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "getbatchid",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Wait1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderStoredProcedureName": "[dbo].[CreateNewBatch]",
+						"storedProcedureParameters": {
+							"BatchID": {
+								"type": "Int32",
+								"value": "-1"
+							},
+							"PipelineName": {
+								"type": "String",
+								"value": {
+									"value": "@pipeline().Pipeline",
+									"type": "Expression"
+								}
+							},
+							"TableName": {
+								"type": "String",
+								"value": "test"
+							}
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "SqlServerTable1",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "caputre_rowFirst",
+				"description": "",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Script1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "insertcount",
+					"value": {
+						"value": "@int(activity('Script1').output.resultSets[0].rows[0].Count)\n",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "captur_second_row",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "caputre_rowFirst",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "Updatecount",
+					"value": {
+						"value": "@if(greater(length(activity('Script1').output.resultSets[0].rows), 1), \n    int(activity('Script1').output.resultSets[0].rows[1].Count), \n    int(0))\n",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Set variable2",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "BatchIdvarsetID",
+					"value": {
+						"value": "@pipeline().parameters.BatchID",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Execute Pipeline1",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "migrate_factempolyee",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"BatchID": {
+							"value": "@variables('BatchIdvarsetID')",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Wait1",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": {
+						"value": "@div(sub(ticks(addMinutes(utcNow(), 2)), ticks(utcNow())), 10000000)",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"BatchID": {
+				"type": "int",
+				"defaultValue": -1
+			}
+		},
+		"variables": {
+			"ETLStartDate": {
+				"type": "String"
+			},
+			"insertcount": {
+				"type": "Integer"
+			},
+			"Upadatcount": {
+				"type": "String"
+			},
+			"Updatecount": {
+				"type": "Integer"
+			},
+			"BatchIdvarsetID": {
+				"type": "Integer"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-07-20T01:51:44Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

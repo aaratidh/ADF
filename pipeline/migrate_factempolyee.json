@@ -1,0 +1,185 @@
+{
+	"name": "migrate_factempolyee",
+	"properties": {
+		"activities": [
+			{
+				"name": "migrate_factemployee",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": "SELECT \n    CONVERT(nvarchar, e.BusinessEntityID) + CONVERT(nvarchar, edh.DepartmentID) + CONVERT(nvarchar(255), NEWID())EmployeeMetricsID,\n    e.BusinessEntityID AS employeeID,\n    edh.DepartmentID,\n    YEAR(eph.RateChangeDate) * 100 + MONTH(eph.RateChangeDate) AS TimeID,\n    eph.Rate AS Salary,\n    1000 AS Bonus,  \n    160 AS HoursWorked\nFROM HumanResources.Employee AS e\nJOIN HumanResources.EmployeeDepartmentHistory AS edh ON e.BusinessEntityID = edh.BusinessEntityID\n    AND edh.EndDate IS NULL  \nJOIN HumanResources.EmployeePayHistory AS eph ON e.BusinessEntityID = eph.BusinessEntityID\n\nWHERE eph.RateChangeDate = (\n    SELECT MAX(RateChangeDate)\n    FROM HumanResources.EmployeePayHistory\n    WHERE BusinessEntityID = e.BusinessEntityID\n);\n",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "SqlServerSink",
+						"writeBehavior": "insert",
+						"sqlWriterUseTableLock": false
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"mappings": [
+							{
+								"source": {
+									"name": "EmployeeMetricsID",
+									"type": "String",
+									"physicalType": "nvarchar"
+								},
+								"sink": {
+									"name": "EmployeeMetricsID",
+									"type": "String",
+									"physicalType": "nvarchar"
+								}
+							},
+							{
+								"source": {
+									"name": "employeeID",
+									"type": "Int32",
+									"physicalType": "int"
+								},
+								"sink": {
+									"name": "employeeID",
+									"type": "Int32",
+									"physicalType": "int"
+								}
+							},
+							{
+								"source": {
+									"name": "DepartmentID",
+									"type": "Int16",
+									"physicalType": "smallint"
+								},
+								"sink": {
+									"name": "DepartmentID",
+									"type": "Int16",
+									"physicalType": "smallint"
+								}
+							},
+							{
+								"source": {
+									"name": "TimeID",
+									"type": "Int32",
+									"physicalType": "int"
+								},
+								"sink": {
+									"name": "TimeID",
+									"type": "Int32",
+									"physicalType": "int"
+								}
+							},
+							{
+								"source": {
+									"name": "Salary",
+									"type": "Decimal",
+									"physicalType": "money",
+									"scale": 4,
+									"precision": 19
+								},
+								"sink": {
+									"name": "Salary",
+									"type": "Decimal",
+									"physicalType": "money",
+									"scale": 4,
+									"precision": 19
+								}
+							},
+							{
+								"source": {
+									"name": "Bonus",
+									"type": "Int32",
+									"physicalType": "int"
+								},
+								"sink": {
+									"name": "Bonus",
+									"type": "Int32",
+									"physicalType": "int"
+								}
+							},
+							{
+								"source": {
+									"name": "HoursWorked",
+									"type": "Int32",
+									"physicalType": "int"
+								},
+								"sink": {
+									"name": "HoursWorked",
+									"type": "Int32",
+									"physicalType": "int"
+								}
+							}
+						],
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "SqlServerTable2",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "Sql_dept_staging",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Script1",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "migrate_factemployee",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "ls_sql_adv2022dw",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "MERGE INTO hr.FactEmployee AS Target\r\nUSING staging.factemployee AS Source\r\nON Target.EmployeeMetricsID = Source.EmployeeMetricsID\r\n\r\nWHEN MATCHED THEN\r\n    UPDATE SET\r\n        Target.employeeID = Source.employeeID,\r\n        Target.DepartmentID = Source.DepartmentID,\r\n        Target.TimeID = Source.TimeID,\r\n        Target.Salary = Source.Salary,\r\n        Target.Bonus = Source.Bonus,\r\n        Target.HoursWorked = Source.HoursWorked\r\n\r\nWHEN NOT MATCHED BY TARGET THEN\r\n    INSERT (EmployeeMetricsID, employeeID, DepartmentID, TimeID, Salary, Bonus, HoursWorked)\r\n    VALUES (\r\n        Source.EmployeeMetricsID,  -- Assuming Source.EmployeeMetricsID is already a UNIQUEIDENTIFIER\r\n        Source.employeeID,\r\n        Source.DepartmentID,\r\n        Source.TimeID,\r\n        Source.Salary,\r\n        Source.Bonus,\r\n        Source.HoursWorked\r\n    );\r\n"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			}
+		],
+		"parameters": {
+			"BatchID": {
+				"type": "int"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-07-05T17:29:58Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

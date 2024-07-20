@@ -1,0 +1,17 @@
+{
+	"name": "Sql_dept_staging",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_sql_adv2022dw",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "staging",
+			"table": "factemployee"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
