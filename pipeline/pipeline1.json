@@ -311,7 +311,7 @@
 				"userProperties": [],
 				"typeProperties": {
 					"waitTimeInSeconds": {
-						"value": "@div(sub(ticks(addMinutes(utcNow(), 2)), ticks(utcNow())), 10000000) ",
+						"value": "@div(sub(ticks(addMinutes(utcNow(), 2)), ticks(utcNow())), 10000000)",
 						"type": "Expression"
 					}
 				}
